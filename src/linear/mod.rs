@@ -1,0 +1,31 @@
+pub mod application;
+pub mod vector;
+pub mod matrix;
+pub mod family;
+pub mod gauss;
+pub mod basis;
+pub mod heap_matrix;
+pub mod solver;
+pub mod spaces;
+pub mod space;
+mod product;
+pub mod iter;
+pub mod ops;
+pub mod convolution;
+pub mod view;
+
+// re-export
+pub use application::*;
+pub use vector::*;
+pub use matrix::*;
+pub use family::*;
+pub use gauss::*;
+pub use basis::*;
+pub use heap_matrix::*;
+pub use solver::*;
+pub use spaces::*;
+pub use space::*;
+pub use iter::*;
+pub use ops::*;
+pub use convolution::*;
+pub use view::*;
