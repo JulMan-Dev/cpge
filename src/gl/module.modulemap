@@ -1,0 +1,4 @@
+module RustApi {
+    header "macos.h"
+    export *
+}

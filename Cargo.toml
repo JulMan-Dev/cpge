@@ -19,3 +19,8 @@ arrayvec = "0.7.8"
 num-traits = "0.2.19"
 rust_decimal = { version = "1.42.1", features = ["macros", "maths"] }
 vulkano = { version = "0.35.2", optional = true }
+
+[build-dependencies]
+build-rs = "0.3.5"
+cmake = "0.1.58"
+walkdir = "2.5.0"
