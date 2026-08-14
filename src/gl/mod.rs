@@ -10,19 +10,17 @@ pub mod event;
 pub mod ptr;
 
 use crate::gl::context::PlatformContext;
-use crate::gl::event::ApplicationEvent;
 use crate::gl::event::internal::ApplicationEventSource;
 use alloc::borrow::ToOwned;
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use std::any::Any;
-use std::format;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::vec;
-use tokio::sync::broadcast;
+use std::{format, thread};
+use tokio::runtime::Handle;
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::{runtime, task, time};
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents};
@@ -45,48 +43,172 @@ use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpa
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
 use vulkano::{LoadingError, Validated, VulkanError, VulkanLibrary};
-use crate::gl::macos::MacOsPoller;
 
-static CONTEXT: OnceLock<Box<dyn PlatformContext>> = OnceLock::new();
+static CONTEXT: OnceLock<context::Context> = OnceLock::new();
 static SHOULD_TERMINATE: AtomicBool = AtomicBool::new(false);
 
 pub mod context {
-    use std::any::Any;
     use crate::gl::event::{ApplicationEvent, internal};
-    use tokio::sync::broadcast;
+    use alloc::boxed::Box;
+    use alloc::vec::Vec;
+    use std::any::Any;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::runtime::Handle;
+    use tokio::sync::{broadcast, mpsc};
+
+    pub struct Context {
+        pub(super) inner: Arc<dyn PlatformContext>,
+        pub(super) ids: Arc<AtomicUsize>,
+        pub(super) spawner: mpsc::Sender<(usize, Pin<Box<dyn Future<Output = ()> + Send>>)>,
+        pub(super) responder: broadcast::Receiver<usize>,
+    }
 
     pub trait PlatformContext: internal::ApplicationEventSource + Send + Sync + Any + 'static {
         fn events(&self) -> broadcast::Receiver<ApplicationEvent>;
     }
+
+    impl Context {
+        /// Schedules the future to run on the main thread. This returns when the main thread
+        /// notifies the task is done.
+        ///
+        /// This may be used to invoke system APIs that require running on the main thread. You
+        /// generally don't need to invoke this manually, abstractions do this for you.
+        pub async fn spawn_on_main<F>(&self, future: F)
+        where
+            F: Future<Output = ()> + Send + 'static,
+        {
+            let next_id = self.ids.fetch_add(1, Ordering::SeqCst);
+            self.spawner.send((next_id, Box::pin(future))).await.unwrap();
+
+            let mut responder = self.responder.resubscribe();
+            while let Ok(id) = responder.recv().await {
+                if id == next_id {
+                    break;
+                }
+            }
+        }
+
+        pub(super) fn downcast_context<T: PlatformContext>(&self) -> Option<&T> {
+            (&*self.inner as &(dyn Any + Send + Sync)).downcast_ref()
+        }
+    }
+
+    impl Clone for Context {
+        fn clone(&self) -> Self {
+            Self {
+                inner: self.inner.clone(),
+                ids: self.ids.clone(),
+                spawner: self.spawner.clone(),
+                responder: self.responder.resubscribe(),
+            }
+        }
+    }
+
+    impl internal::ApplicationEventSource for Context {
+        fn poll_events(&self, events: &mut Vec<ApplicationEvent>) {
+            self.inner.poll_events(events);
+        }
+
+        fn async_handle(&self) -> &Handle {
+            self.inner.async_handle()
+        }
+    }
+
+    impl PlatformContext for Context {
+        fn events(&self) -> broadcast::Receiver<ApplicationEvent> {
+            self.inner.events()
+        }
+    }
 }
 
+/// Boots the GL window and event loop. This must be called on the main thread.
+///
+/// Calling this method blocks until the event loop terminates.
+///
+/// Note that some platforms do not resume the thread when the system asks the application to
+/// terminate. You can listen to the [`ShouldTerminate`](event::ApplicationEvent::ShouldTerminate)
+/// event to handle cleanup before terminating.
+///
+/// This spawns a runtime system thread to ensure the event loop continues to run even if the system
+/// blocks the main thread. The future may not run on the main thread, if some code requires this,
+/// use [`Context::spawn_on_main`](context::Context::spawn_on_main).
+///
+/// If the passed future returns, the event loop terminates and this returns.
 pub fn boot_gl<F, T>(f: F)
 where
     F: Send + FnOnce() -> T + 'static,
     T: Future<Output = ()> + Send,
 {
-    let rt = runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let rt_handle = rt.handle().clone();
+    let handle_rt = Arc::new(OnceLock::<Handle>::new());
+    let (tx_context, rx_context) = oneshot::channel();
 
-    let handle = rt.spawn(async {
-        task::yield_now().await; // the yield_now is required to ensure the context is initialized
-        f().await;
-    });
+    // we spawn a runtime system thread.
+    let handle = {
+        let handle_rt = handle_rt.clone();
+        let main = thread::current();
 
-    let main_handle = rt.spawn(async move {
+        thread::Builder::new().name("cpge-event-loop".to_owned()).spawn(move || {
+            let rt = runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            handle_rt.set(rt.handle().clone()).unwrap();
+            drop(handle_rt);
+            main.unpark();
+
+            rt.block_on(async {
+                let _: () = rx_context.await.unwrap(); // wait for context to be initialized
+
+                let handle = rt.spawn(async {
+                    // no longer need yielding since we waited for the context
+                    f().await;
+                });
+
+                loop {
+                    if handle.is_finished() || SHOULD_TERMINATE.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    task::yield_now().await;
+                }
+            });
+        }).unwrap()
+    };
+
+    // synchronously wait for runtime thread to set the runtime handle.
+    thread::park();
+    let handle_rt = Arc::into_inner(handle_rt)
+        .expect("runtime thread did not drop the arc pointer")
+        .into_inner()
+        .expect("runtime thread did not send the handle");
+
+    let (tx_tasks, mut rx_tasks) = mpsc::channel(32);
+    let (tx_responder, rx_responder) = broadcast::channel(32);
+
+    handle_rt.block_on(async {
         let (tx, _) = broadcast::channel(32);
 
-        let application = {
-            let application: Box<dyn PlatformContext> = Box::new(cfg_select! {
-                target_os = "macos" => { macos::start_application(tx.clone(), rt_handle.clone()) }
+        let context = {
+            // we initialize the platform context from the main thread in case the backend requires
+            // this (AppKit, for example, does)
+            let application: Arc<dyn PlatformContext> = Arc::new(cfg_select! {
+                target_os = "macos" => { macos::start_application(tx.clone(), handle_rt.clone()) }
             });
 
-            CONTEXT.set(application).ok().expect("a gl context already defined");
+            let context = context::Context {
+                inner: application,
+                ids: Arc::new(Default::default()),
+                spawner: tx_tasks,
+                responder: rx_responder,
+            };
+
+            CONTEXT.set(context).ok().expect("a gl context already defined");
             CONTEXT.get().unwrap()
         };
+
+        tx_context.send(()).unwrap();
 
         let mut ticker = time::interval(Duration::from_millis(10));
         let mut vec = Vec::new();
@@ -96,20 +218,34 @@ where
                 break;
             }
 
-            ticker.tick().await;
-            application.poll_events(&mut vec);
+            tokio::select! {
+                _ = ticker.tick() => {
+                    context.poll_events(&mut vec);
 
-            for event in vec.drain(..) {
-                tx.send(event).unwrap();
-            }
+                    for event in vec.drain(..) {
+                        tx.send(event).unwrap();
+                    }
+                },
+                Some((id, task)) = rx_tasks.recv() => {
+                    task.await;
+                    tx_responder.send(id).unwrap();
+                },
+            };
         }
     });
 
-    rt.block_on(main_handle).expect("oh no! event loop failed");
+    // synchronously wait for runtime thread to end before returning
+    SHOULD_TERMINATE.store(true, Ordering::Relaxed);
+    handle.join().unwrap();
 }
 
-pub fn context() -> &'static dyn PlatformContext {
-    &**CONTEXT.get().expect("Not called in bool_gl context")
+/// Gets the current context.
+///
+/// # Panics
+///
+/// Panics if called outside a [`boot_gl`] context.
+pub fn context() -> &'static context::Context {
+    CONTEXT.get().expect("Not called in bool_gl context")
 }
 
 pub(super) fn mark_should_terminate() {

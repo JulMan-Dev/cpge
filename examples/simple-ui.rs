@@ -1,4 +1,5 @@
 use cpge::gl;
+use cpge::gl::context::PlatformContext;
 
 fn main() {
     gl::boot_gl(async || {

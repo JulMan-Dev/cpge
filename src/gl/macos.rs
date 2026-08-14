@@ -298,19 +298,15 @@ impl Clone for ShouldTerminateEvent {
     fn clone(&self) -> Self {
         Self {
             notifier: self.notifier.clone(),
-            inner: unsafe {
-                let ptr: Retained<NSEvent> = self.inner.into_objc();
-                let r = OpaqueInner::from_objc(ptr.clone());
-                mem::forget(ptr);
-                r
-            },
+            inner: self.inner,
         }
     }
 }
 
 impl Drop for ShouldTerminateEvent {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.notifier) > 1 {
+        // 2 is the daemon thread and self; we can consider this is the last Arc
+        if Arc::strong_count(&self.notifier) > 2 {
             return;
         }
 
@@ -321,8 +317,7 @@ impl Drop for ShouldTerminateEvent {
 
 #[unsafe(export_name = "cpge_macos_should_terminate")]
 extern "C-unwind" fn swift_notify_should_terminate() {
-    let ctx: &(dyn Any + Send + Sync) = context();
-    let ctx: &MacOsPoller = ctx.downcast_ref().unwrap();
+    let ctx: &MacOsPoller = context().downcast_context().unwrap();
 
     let once = Arc::new(SetOnce::new());
 

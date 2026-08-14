@@ -9,12 +9,23 @@ pub trait BackendEvent {
 
 pub(super) mod internal {
     use crate::gl::event::ApplicationEvent;
-    use std::prelude::rust_2015::Vec;
+    use alloc::vec::Vec;
     use tokio::runtime::Handle;
 
     pub trait ApplicationEventSource {
+        /// The implementation that polls application events in a platform-independent way.
+        ///
+        /// The backend implementation should be not blocking. This should return immediately if they
+        /// are not events pending.
+        ///
+        /// The event loop calls this method to poll for new events. It is guaranteed to be invoked
+        /// on the main system thread.
         fn poll_events(&self, events: &mut Vec<ApplicationEvent>);
 
+        /// The Tokio runtime handle. This may be used to spawn asynchronous tasks.
+        ///
+        /// Note: if your task needs the main thread, you should use
+        /// [`Context::spawn_on_main`](super::super::context::Context::spawn_on_main).
         fn async_handle(&self) -> &Handle;
     }
 }
