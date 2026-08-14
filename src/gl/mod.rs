@@ -230,7 +230,7 @@ where
                     task.await;
                     tx_responder.send(id).unwrap();
                 },
-            };
+            }
         }
     });
 

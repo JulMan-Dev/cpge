@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use build_rs::{input, output};
 
 const EXTENSIONS: &[&str] = &["c", "h", "swift", "modulemap"];

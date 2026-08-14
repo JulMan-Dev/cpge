@@ -1,9 +1,17 @@
 use core::mem;
 
+/// A trait that adds a method, [`spec_window`].
 pub trait SpecWindow<T> {
+    /// Returns a new sliding window iterator.
     fn spec_window<const N: usize>(&mut self) -> SWindow<'_, T, N>;
 }
 
+/// A sliding window iterator.
+///
+/// The iterator returns a tuple of a mutable reference to the current element and a slice of the
+/// next `N` elements. May be used to rewrite elements in-place depending on next elements.
+///
+/// This iterator may only work on fixed slices.
 pub struct SWindow<'a, T, const N: usize> {
     inner: &'a mut [T]
 }

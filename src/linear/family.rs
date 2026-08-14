@@ -189,7 +189,7 @@ where
             let mut ret = ArrayVec::new();
             ret.push(vec);
             ret
-        } else { // self empty
+        } else { // self is empty
             return Owned::new(ArrayVec::new());
         };
 
@@ -222,7 +222,7 @@ where
         let mut iter = self.vectors.iter().cloned();
         let mut ret = if let Some(vec) = iter.next() {
             vec![vec]
-        } else { // self empty
+        } else { // self is empty
             return Self::empty_heap();
         };
 

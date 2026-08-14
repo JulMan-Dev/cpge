@@ -102,7 +102,7 @@ impl<T, const CAP: usize> AbstractVec<T> for ArrayVec<T, CAP> {
     }
 }
 
-pub mod heap {
+mod heap {
     use alloc::vec::Vec;
     use core::mem::MaybeUninit;
     use crate::mem::AbstractVec;
@@ -143,6 +143,8 @@ pub trait FromOwned<Owned> {
     fn from_owned_mut(owned: &mut Owned) -> &mut Self;
 }
 
+/// An owned instance of `O` that dereferences to a type `K`. This is used to share a `K` instance
+/// when it is unsized. The storage is handled by `O`.
 #[derive(Debug)]
 pub struct Owned<K: ?Sized, O>
 where
@@ -156,18 +158,22 @@ impl<K: ?Sized, O> Owned<K, O>
 where
     K: FromOwned<O>,
 {
+    /// Creates a new `Owned` instance from the given `O` instance.
     pub const fn new(inner: O) -> Self {
         Self { inner, _data: PhantomData }
     }
 
+    /// Consumes the `Owned` instance and returns the inner storage instance.
     pub fn into_inner(self) -> O {
         self.inner
     }
 
+    /// Returns a reference to the inner storage instance.
     pub fn to_inner(&self) -> &O {
         &self.inner
     }
 
+    /// Returns a mutable reference to the inner storage instance.
     pub fn to_inner_mut(&mut self) -> &mut O {
         &mut self.inner
     }

@@ -1,6 +1,6 @@
 use crate::linear::view::Goggles;
 
-pub mod heap {
+mod heap {
     //#region MatrixCellIter
 
     use alloc::boxed::Box;
@@ -150,7 +150,7 @@ pub mod heap {
                 _ => return None,
             };
 
-            // SAFETY: * next was a mut reference just before ;
+            // SAFETY: * next was a mut reference just before;
             //         * next() may not produce a mut ref to same memory.
             unsafe { (next as *mut T).as_mut() }
         }
@@ -185,7 +185,7 @@ pub mod heap {
                 _ => return None,
             };
 
-            // SAFETY: * next was a mut reference just before ;
+            // SAFETY: * next was a mut reference just before;
             //         * next_back() may not produce a mut ref to same memory
             unsafe { (next as *mut T).as_mut() }
         }
@@ -493,6 +493,8 @@ pub mod heap {
 
     //#endregion
 }
+
+pub use heap::*;
 
 pub struct Positions<I> {
     iter: I,

@@ -1,3 +1,4 @@
+/// A cross-product iterator.
 #[derive(Clone, Debug)]
 pub struct Cross<U: Iterator, V: Iterator + Clone>
 where

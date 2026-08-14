@@ -48,11 +48,11 @@ where
     }
 }
 
-pub mod heap {
+mod heap {
     use alloc::boxed::Box;
     use num_traits::{Float, Num, NumCast, Zero};
     use crate::combinatorial::factorial;
-    use crate::polynomials::poly::heap::{basic_newton_binomial_heap, HeapPolynomial};
+    use crate::polynomials::poly::{basic_newton_binomial_heap, HeapPolynomial};
 
     /// Represents Taylor polynomial formula.
     #[derive(Clone, Debug)]

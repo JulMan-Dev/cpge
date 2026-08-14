@@ -1,7 +1,7 @@
 use crate::gl::ptr::OpaqueInner;
 use alloc::string::String;
-use std::sync::{Arc, RwLock};
-use tokio::sync::{oneshot, SetOnce};
+use std::sync::Arc;
+use tokio::sync::SetOnce;
 
 pub trait BackendEvent {
     fn timestamp(&self) -> u64;

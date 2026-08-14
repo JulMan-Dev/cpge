@@ -22,7 +22,7 @@ where
 {
     type DotOutput: Default + Copy + Num;
 
-    /// This computes the dot product for vectors. It must follow some rule:
+    /// This computes the dot product for vectors. It must follow some rules:
     ///
     /// * Symmetric: for all (u, v) in `Self ^ N`, [`dot(u, v)`](Self::dot) =
     ///   [`dot(v, u)`](Self::dot).
@@ -54,7 +54,7 @@ where
 }
 
 /// The trait defines metric spaces. It adds the distance operation, allowing to get the distance
-/// between any vector in the space. Metric spaces may not have origin, only distance is enforced.
+/// between any vector in the space. Metric spaces may not have an origin, only distance is enforced.
 /// A metric space with zero as origin and a distance operation is a normed vector space.
 ///
 /// # Example

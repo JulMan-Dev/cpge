@@ -11,7 +11,6 @@ use crate::linear::{InnerDotProductSpace, MetricSpace, NormedVectorSpace};
 use crate::mem::{AbstractVec, Owned};
 use arrayvec::ArrayVec;
 use core::array::from_ref;
-use core::fmt;
 use num_traits::{Float, Zero};
 
 #[derive(Debug)]
@@ -207,7 +206,7 @@ where
 }
 
 
-pub mod heap {
+mod heap {
     use alloc::boxed::Box;
     use core::array::from_ref;
     use num_traits::{Float, Zero};

@@ -8,7 +8,7 @@ use crate::linear::{InnerDotProductSpace, MetricSpace, NormedVectorSpace};
 ///
 /// This implements `Clone`, `Debug`, if `T: Debug`, and `PartialEq`.
 ///
-/// This can be used to creates matrices.
+/// This can be used to create matrices.
 ///
 /// # Example
 ///

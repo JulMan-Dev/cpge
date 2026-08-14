@@ -1236,7 +1236,7 @@ use alloc::borrow::ToOwned;
     use alloc::vec::Vec;
     use num_traits::{Float, Num, Zero};
     use crate::linear::{HeapMatrix, InvertError, MatrixRowOperation, MatrixView, TransparentMatrix, Vector, VectorFamily};
-    use crate::linear::iter::heap::{MatrixCellIter, MatrixCellIterMut, MatrixCols, MatrixColsMut, MatrixRows, MatrixRowsMut};
+    use crate::linear::iter::{MatrixCellIter, MatrixCellIterMut, MatrixCols, MatrixColsMut, MatrixRows, MatrixRowsMut};
     use crate::linear::product::{impl_product, impl_scalar};
     use crate::linear::view::RowRecorder;
     use crate::mem::Owned;
@@ -1825,17 +1825,17 @@ use alloc::borrow::ToOwned;
         /// Computes the determinant of `self`.
         ///
         /// Note: `T` must be `Float` because this can use [`gaussian_elimination`](Self::gaussian_elimination).
-        pub fn determinant(&mut self) -> Option<T>
+        pub fn determinant_mut(&mut self) -> Option<T>
         where
             T: Float,
         {
-            let Some(n) = self.is_square() else { return None };
+            let n = self.is_square()?;
 
-            Some(match self.as_slice() {
-                &[a, b, c, d] => {
+            Some(match *self.as_slice() {
+                [a, b, c, d] => {
                     a * c - b * d
                 }
-                &[a, b, c, d, e, f, g, h, i] => {
+                [a, b, c, d, e, f, g, h, i] => {
                     a * (e * i - f * h) - d * (b * i - c * h) + g * (b * f - c * e)
                 }
                 _ => {
@@ -1843,7 +1843,6 @@ use alloc::borrow::ToOwned;
                     //       remove the `T: Float` precondition thus allowing integers matrices.
 
                     // generic form, using Gaussian reduction
-                    let mut matrix = self.to_heap();
                     let steps = self.record_gaussian_elimination_mut();
 
                     let swaps = steps.iter()

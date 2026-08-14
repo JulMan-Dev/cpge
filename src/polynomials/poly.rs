@@ -7,6 +7,7 @@ use core::mem;
 use core::mem::MaybeUninit;
 use core::ops::DerefMut;
 use num_traits::{ConstZero, Float, Num, NumCast, One, Zero};
+use crate::mem::AbstractVec;
 
 /// A polynomial whose degree is maximum `N`, on the stack.
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
@@ -152,7 +153,7 @@ where
     }
 }
 
-pub mod heap {
+mod heap {
     use alloc::boxed::Box;
     use alloc::vec;
     use alloc::vec::Vec;
@@ -162,7 +163,7 @@ pub mod heap {
     use crate::combinatorial::combination;
     use crate::mem::AbstractVec;
     use crate::polynomials::AbstractPolynomial;
-    use crate::polynomials::taylor::heap::HeapTaylorPolynomial;
+    use crate::polynomials::taylor::HeapTaylorPolynomial;
 
     /// A polynomial whose data is on the heap.
     #[derive(Clone, Debug, PartialOrd, PartialEq)]
@@ -358,7 +359,7 @@ pub mod heap {
                 });
             }
 
-            Self { coefficients: coefficients }
+            Self { coefficients }
         }
     }
 
@@ -488,7 +489,6 @@ pub mod heap {
 }
 
 pub use heap::*;
-use crate::mem::AbstractVec;
 
 #[repr(transparent)]
 pub struct AbstractPolynomial<T>(dyn AbstractVec<T>)
@@ -623,7 +623,7 @@ where
     }
 
     fn set_zero(&mut self) {
-        // this is more memory efficient that the default implementation
+        // this is more memory efficient than the default implementation
         self.coefficients.clear()
     }
 
@@ -641,7 +641,7 @@ where
         // trivial: it's x^n
         let mut coefficients = ArrayVec::new();
 
-        for i in 0..n {
+        for _ in 0..n {
             coefficients.push(T::zero());
         }
 

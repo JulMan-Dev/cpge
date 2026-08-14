@@ -18,7 +18,7 @@ impl<T, const N: usize> VectorBasis<T, N>
 where
     T: Default + Copy + Num,
 {
-    /// This function is unsafe because it doesn't safe the vectors passed form
+    /// This function is unsafe because it isn't safe the vectors passed form
     /// a basis. The caller must check before creating one.
     ///
     /// # Safety

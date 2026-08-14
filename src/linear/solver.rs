@@ -58,7 +58,7 @@ where
 {
     /// Solves the homogenous system through its matrix.
     ///
-    /// Note: The zero vector is always solution of such systems.
+    /// Note: The zero vector is always a solution of such systems.
     ///
     /// # Example
     ///
@@ -159,7 +159,7 @@ where
                     LinearSolutions::None
                 }
             }
-            LinearSolutions::Infinite { particular, kernel } => {
+            LinearSolutions::Infinite { particular: _, kernel: _ } => {
                 todo!()
             }
             LinearSolutions::Unique(_) => { todo!() }
@@ -171,7 +171,7 @@ where
     where
         T: Float,
     {
-        let (rref, right) = matrix.rref_with_right(right);
+        let (_rref, _right) = matrix.rref_with_right(right);
 
         todo!();
     }

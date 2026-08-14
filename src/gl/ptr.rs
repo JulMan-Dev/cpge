@@ -1,7 +1,10 @@
-use std::fmt;
-use std::ptr::NonNull;
+use core::fmt;
+use core::ptr::NonNull;
 
+/// An opaque pointer struct that can be sent and synced across threads. Unlike default raw pointers
+/// that don't implement `Send` and `Sync`.
 #[derive(Clone, Copy)]
+#[repr(transparent)]
 pub struct OpaqueInner(NonNull<()>);
 
 unsafe impl Send for OpaqueInner {}

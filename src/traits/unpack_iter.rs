@@ -1,10 +1,13 @@
 use core::iter::FusedIterator;
 
+/// This trait provides methods to unpack iterators of tuples.
 pub trait UnpackableIter<A, B, C> {
+    /// Makes an iterator that yields `(A, B, C)` tuples from an iterator of `((A, B), C)` tuples.
     fn unpack_left(self) -> LeftUnpacker<Self>
     where
         Self: Sized + Iterator<Item = ((A, B), C)>;
 
+    /// Makes an iterator that yields `(A, B, C)` tuples from an iterator of `(A, (B, C))` tuples.
     fn unpack_right(self) -> RightUnpacker<Self>
     where
         Self: Sized + Iterator<Item = (A, (B, C))>;

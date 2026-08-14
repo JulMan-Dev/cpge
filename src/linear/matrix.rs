@@ -72,7 +72,7 @@ where
     ///     [3, 6],
     /// ]));
     ///
-    /// // this is used for example in from_row_vectors/to_row_vectors
+    /// // this is used, for example, in from_row_vectors/to_row_vectors
     /// let from_cols = original.to_vectors();
     /// let from_rows = original.transpose().to_row_vectors();
     /// assert_eq!(from_cols, from_rows);
@@ -429,7 +429,7 @@ where
                 panic!("invalid amount of values in row")
             }
 
-            // SAFETY: all elements are initiliazed.
+            // SAFETY: all elements are initialized.
             ret.data[i].copy_from_slice(unsafe { row_buffer.assume_init_ref() });
             last_i.replace(i);
         }

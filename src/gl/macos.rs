@@ -4,20 +4,18 @@ use crate::gl::context::PlatformContext;
 use crate::gl::event::ApplicationEvent::{Key, Mouse};
 use crate::gl::event::{ApplicationEvent, BackendEvent, KeyEvent, MouseAction, MouseButton, MouseEvent, PeriodicEvent, ShouldTerminateEvent, WheelEvent, internal};
 use crate::gl::ptr::OpaqueInner;
-use crate::gl::{Data, GL, context, init_vulkan, mark_should_terminate};
+use crate::gl::{Data, GL, context, init_vulkan};
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use objc2::rc::Retained;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApp, NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventTrackingRunLoopMode, NSEventType, NSModalPanelRunLoopMode};
+use objc2::rc::Retained;
+use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventType, NSModalPanelRunLoopMode};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSProcessInfo};
-use std::any::Any;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::{mem, thread};
-use std::task::Waker;
 use tokio::runtime::Handle;
-use tokio::sync::{broadcast, Notify, oneshot, SetOnce};
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::{SetOnce, broadcast};
 use tokio::task;
 
 #[link(name = "cpge-native")]
