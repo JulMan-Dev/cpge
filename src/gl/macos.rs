@@ -53,32 +53,38 @@ extern "C-unwind" fn spawn_vulkan(layer: *mut (), data: *const Data) {
 }
 
 impl BackendEvent for MouseEvent {
-    fn timestamp(&self) -> u64 {
+    fn timestamp(&self) -> f64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
-        let f = NSDate::new().timeIntervalSince1970() +
-            event.timestamp() - NSProcessInfo::processInfo().systemUptime();
-        f as u64
+        NSDate::new().timeIntervalSince1970() +
+            event.timestamp() - NSProcessInfo::processInfo().systemUptime()
     }
 }
 
 impl BackendEvent for KeyEvent {
-    fn timestamp(&self) -> u64 {
+    fn timestamp(&self) -> f64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
-        let f = NSDate::new().timeIntervalSince1970() +
-            event.timestamp() - NSProcessInfo::processInfo().systemUptime();
-        f as u64
+        NSDate::new().timeIntervalSince1970() +
+            event.timestamp() - NSProcessInfo::processInfo().systemUptime()
     }
 }
 
 impl BackendEvent for WheelEvent {
-    fn timestamp(&self) -> u64 {
+    fn timestamp(&self) -> f64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
-        let f = NSDate::new().timeIntervalSince1970() +
-            event.timestamp() - NSProcessInfo::processInfo().systemUptime();
-        f as u64
+        NSDate::new().timeIntervalSince1970() +
+            event.timestamp() - NSProcessInfo::processInfo().systemUptime()
+    }
+}
+
+impl BackendEvent for ShouldTerminateEvent {
+    fn timestamp(&self) -> f64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // ShouldTerminateEvent is not a NSEvent, it is an artificial event
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
     }
 }
 
@@ -343,10 +349,15 @@ extern "C-unwind" fn swift_notify_should_terminate() {
 }
 
 impl ShouldTerminateEvent {
+    /// Notifies the system that the application is not ready, for now, to terminate immediately.
     pub fn reply_not_ready(&mut self) {
         let _ = self.notifier.set(false);
     }
 
+    /// Notifies the system that the application is ready to terminate immediately.
+    ///
+    /// Note that the system may terminate the application immediately after this call. Do the
+    /// cleanup before calling this method.
     pub fn reply_ready(&mut self) {
         let _ = self.notifier.set(true);
     }
