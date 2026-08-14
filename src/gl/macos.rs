@@ -1,23 +1,24 @@
 //! macOS window logic.
 
-use alloc::string::ToString;
-use alloc::borrow::Cow;
-use alloc::string::String;
-use std::io;
-use alloc::vec::Vec;
-use std::marker::PhantomData;
-use std::ptr::NonNull;
-use crate::gl::{Data, GL, init_vulkan};
-use std::sync::{Arc, OnceLock};
-use objc2::{class, msg_send, MainThreadMarker};
-use objc2::ffi::nil;
-use objc2::rc::Retained;
-use objc2::runtime::NSObject;
-use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventTrackingRunLoopMode, NSEventType};
-use objc2_foundation::{NSDate, NSProcessInfo};
-use crate::gl::event::{internal, MouseEvent, KeyEvent, WheelEvent, ApplicationEvent, MouseButton, MouseAction, ShouldTerminateEvent};
+use crate::gl::context::PlatformContext;
 use crate::gl::event::ApplicationEvent::{Key, Mouse};
+use crate::gl::event::{ApplicationEvent, BackendEvent, KeyEvent, MouseAction, MouseButton, MouseEvent, PeriodicEvent, ShouldTerminateEvent, WheelEvent, internal};
 use crate::gl::ptr::OpaqueInner;
+use crate::gl::{Data, GL, context, init_vulkan, mark_should_terminate};
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use objc2::rc::Retained;
+use objc2::MainThreadMarker;
+use objc2_app_kit::{NSApp, NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventTrackingRunLoopMode, NSEventType, NSModalPanelRunLoopMode};
+use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSProcessInfo};
+use std::any::Any;
+use std::sync::{Arc, OnceLock, RwLock};
+use std::{mem, thread};
+use std::task::Waker;
+use tokio::runtime::Handle;
+use tokio::sync::{broadcast, Notify, oneshot, SetOnce};
+use tokio::sync::broadcast::Receiver;
+use tokio::task;
 
 #[link(name = "cpge-native")]
 unsafe extern "C-unwind" {
@@ -27,7 +28,7 @@ unsafe extern "C-unwind" {
 static GLOBAL_GL: OnceLock<GL> = OnceLock::new();
 
 /// Initializes the macOS window and makes a poller for Tokio runtime.
-pub fn start_application() -> MacOsPoller {
+pub fn start_application(tx: broadcast::Sender<ApplicationEvent>, handle: Handle) -> MacOsPoller {
     GLOBAL_GL.get_or_init(|| GL::new().unwrap());
 
     unsafe {
@@ -37,7 +38,7 @@ pub fn start_application() -> MacOsPoller {
         application.finishLaunching();
     }
 
-    MacOsPoller::new()
+    MacOsPoller::new(tx, handle)
 }
 
 /// This is called by the Swift mainloop when the view is ready.
@@ -53,7 +54,7 @@ extern "C-unwind" fn spawn_vulkan(layer: *mut (), data: *const Data) {
     init_vulkan(instance, surface, data)
 }
 
-impl internal::BackendEvent for MouseEvent {
+impl BackendEvent for MouseEvent {
     fn timestamp(&self) -> u64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
@@ -63,7 +64,7 @@ impl internal::BackendEvent for MouseEvent {
     }
 }
 
-impl internal::BackendEvent for KeyEvent {
+impl BackendEvent for KeyEvent {
     fn timestamp(&self) -> u64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
@@ -73,7 +74,7 @@ impl internal::BackendEvent for KeyEvent {
     }
 }
 
-impl internal::BackendEvent for WheelEvent {
+impl BackendEvent for WheelEvent {
     fn timestamp(&self) -> u64 {
         let event: &NSEvent = unsafe { self.inner.as_ref() };
 
@@ -83,27 +84,51 @@ impl internal::BackendEvent for WheelEvent {
     }
 }
 
-pub struct MacOsPoller(Retained<NSApplication>);
+pub struct MacOsPoller {
+    broadcast: broadcast::Sender<ApplicationEvent>,
+    is_dying: RwLock<bool>,
+    handle: Handle,
+}
 
 impl MacOsPoller {
-    pub(super) fn new() -> Self {
-        // SAFETY: the caller must ensure that this is called on the main thread
-        let marker = unsafe { MainThreadMarker::new_unchecked() };
-        MacOsPoller(NSApplication::sharedApplication(marker))
+    pub(super) fn new(tx: broadcast::Sender<ApplicationEvent>, handle: Handle) -> Self {
+        MacOsPoller {
+            broadcast: tx,
+            is_dying: RwLock::new(false),
+            handle,
+        }
     }
 
     pub fn poll(&self) -> Option<Retained<NSEvent>> {
-        let event = self.0.nextEventMatchingMask_untilDate_inMode_dequeue(
-            NSEventMask::Any,
-            None,
-            unsafe { NSEventTrackingRunLoopMode },
-            true,
-        )?;
+        Some({
+            // do nothing if we are not on the main thread
+            let marker = MainThreadMarker::new()?;
+            let application = NSApplication::sharedApplication(marker);
 
-        // backpressure to ensure AppKit also handles events
-        self.0.sendEvent(&event);
+            application.updateWindows();
+            let event = application.nextEventMatchingMask_untilDate_inMode_dequeue(
+                NSEventMask::Any,
+                None,
+                unsafe {
+                    if !*self.is_dying.read().unwrap() {
+                        NSDefaultRunLoopMode
+                    } else {
+                        NSModalPanelRunLoopMode
+                    }
+                },
+                true,
+            )?;
 
-        Some(event)
+            // backpressure to ensure AppKit also handles events
+            application.sendEvent(&event);
+            event
+        })
+    }
+}
+
+impl PlatformContext for MacOsPoller {
+    fn events(&self) -> Receiver<ApplicationEvent> {
+        self.broadcast.subscribe()
     }
 }
 
@@ -167,24 +192,169 @@ impl internal::ApplicationEventSource for MacOsPoller {
             events.push(event);
         }
     }
+
+    fn async_handle(&self) -> &Handle {
+        &self.handle
+    }
+}
+
+impl Clone for MouseEvent {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            button: self.button,
+            location: self.location,
+            delta_x: self.delta_x,
+            delta_y: self.delta_y,
+            action: self.action,
+            inner: unsafe {
+                let ptr: Retained<NSEvent> = self.inner.into_objc();
+                let r = OpaqueInner::from_objc(ptr.clone());
+                mem::forget(ptr);
+                r
+            },
+        }
+    }
+}
+
+impl Drop for MouseEvent {
+    fn drop(&mut self) {
+        unsafe { self.inner.objc_drop_in_place::<NSEvent>() }
+    }
+}
+
+impl Clone for KeyEvent {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            key: self.key.clone(),
+            caps: self.caps,
+            shift: self.shift,
+            control: self.control,
+            alt: self.alt,
+            meta: self.meta,
+            function: self.function,
+            inner: unsafe {
+                let ptr: Retained<NSEvent> = self.inner.into_objc();
+                let r = OpaqueInner::from_objc(ptr.clone());
+                mem::forget(ptr);
+                r
+            },
+        }
+    }
+}
+
+impl Drop for KeyEvent {
+    fn drop(&mut self) {
+        unsafe { self.inner.objc_drop_in_place::<NSEvent>() }
+    }
+}
+
+impl Clone for WheelEvent {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            delta_x: self.delta_x,
+            delta_y: self.delta_y,
+            inverted: self.inverted,
+            inner: unsafe {
+                let ptr: Retained<NSEvent> = self.inner.into_objc();
+                let r = OpaqueInner::from_objc(ptr.clone());
+                mem::forget(ptr);
+                r
+            },
+        }
+    }
+}
+
+impl Drop for WheelEvent {
+    fn drop(&mut self) {
+        unsafe { self.inner.objc_drop_in_place::<NSEvent>() }
+    }
+}
+
+impl Clone for PeriodicEvent {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            inner: unsafe {
+                let ptr: Retained<NSEvent> = self.inner.into_objc();
+                let r = OpaqueInner::from_objc(ptr.clone());
+                mem::forget(ptr);
+                r
+            },
+        }
+    }
+}
+
+impl Drop for PeriodicEvent {
+    fn drop(&mut self) {
+        unsafe { self.inner.objc_drop_in_place::<NSEvent>() }
+    }
+}
+
+impl Clone for ShouldTerminateEvent {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            notifier: self.notifier.clone(),
+            inner: unsafe {
+                let ptr: Retained<NSEvent> = self.inner.into_objc();
+                let r = OpaqueInner::from_objc(ptr.clone());
+                mem::forget(ptr);
+                r
+            },
+        }
+    }
+}
+
+impl Drop for ShouldTerminateEvent {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.notifier) > 1 {
+            return;
+        }
+
+        // we are the last one, notify is required
+        self.reply_ready();
+    }
+}
+
+#[unsafe(export_name = "cpge_macos_should_terminate")]
+extern "C-unwind" fn swift_notify_should_terminate() {
+    let ctx: &(dyn Any + Send + Sync) = context();
+    let ctx: &MacOsPoller = ctx.downcast_ref().unwrap();
+
+    let once = Arc::new(SetOnce::new());
+
+    *ctx.is_dying.write().unwrap() = true;
+    ctx.broadcast.send(ApplicationEvent::ShouldTerminate(ShouldTerminateEvent {
+        notifier: once.clone(),
+        inner: OpaqueInner::from_ref(ctx), // ctx is 'static, we can use it
+    })).unwrap();
+
+    let application = OpaqueInner::from_objc(
+        NSApplication::sharedApplication(MainThreadMarker::new().unwrap())
+    );
+
+    // when this returns, AppKit owns the event loop, aka the main thread.
+    // we need to spawn a system thread to run the Tokio event loop until we
+    // responded to AppKit
+    thread::Builder::new().name("cpge-gl-should_terminate".to_string()).spawn(move || {
+        let value = ctx.handle.block_on(async {
+            task::yield_now().await;
+            *once.wait().await
+        });
+        std::println!("should terminate");
+        unsafe { application.into_objc::<NSApplication>().replyToApplicationShouldTerminate(value) };
+    }).unwrap();
 }
 
 impl ShouldTerminateEvent {
     pub fn reply_not_ready(&mut self) {
-        if self.replied {
-            return;
-        }
-
-        self.replied = true;
-        todo!("invoke swift to actually reply");
+        let _ = self.notifier.set(false);
     }
 
     pub fn reply_ready(&mut self) {
-        if self.replied {
-            return;
-        }
-
-        self.replied = true;
-        todo!("invoke swift to actually reply");
+        let _ = self.notifier.set(true);
     }
 }

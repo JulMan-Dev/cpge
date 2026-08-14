@@ -1,13 +1,15 @@
-use cpge::gl::boot_gl;
-use cpge::gl::event::Events;
+use cpge::gl;
 
 fn main() {
-    boot_gl(async || {
-        let mut events = Events::context();
+    gl::boot_gl(async || {
+        let context = gl::context();
+        let mut events = context.events();
 
         loop {
-            let event = events.poll().await;
+            let event = events.recv().await.unwrap();
             println!("{:?}", event);
         }
     });
+
+    println!("done")
 }

@@ -9,19 +9,21 @@ pub mod macos;
 pub mod event;
 pub mod ptr;
 
+use crate::gl::context::PlatformContext;
 use crate::gl::event::ApplicationEvent;
 use crate::gl::event::internal::ApplicationEventSource;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use std::any::Any;
+use std::format;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::vec;
-use std::format;
-use std::pin::Pin;
-use std::sync::OnceLock;
 use tokio::sync::broadcast;
-use tokio::{runtime, time};
+use tokio::{runtime, task, time};
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
@@ -43,10 +45,22 @@ use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpa
 use vulkano::shader::ShaderModule;
 use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
 use vulkano::{LoadingError, Validated, VulkanError, VulkanLibrary};
+use crate::gl::macos::MacOsPoller;
 
-static EVENTS: OnceLock<broadcast::Receiver<ApplicationEvent>> = OnceLock::new();
+static CONTEXT: OnceLock<Box<dyn PlatformContext>> = OnceLock::new();
+static SHOULD_TERMINATE: AtomicBool = AtomicBool::new(false);
 
-pub fn boot_gl<F, T>(f: F) -> ()
+pub mod context {
+    use std::any::Any;
+    use crate::gl::event::{ApplicationEvent, internal};
+    use tokio::sync::broadcast;
+
+    pub trait PlatformContext: internal::ApplicationEventSource + Send + Sync + Any + 'static {
+        fn events(&self) -> broadcast::Receiver<ApplicationEvent>;
+    }
+}
+
+pub fn boot_gl<F, T>(f: F)
 where
     F: Send + FnOnce() -> T + 'static,
     T: Future<Output = ()> + Send,
@@ -55,27 +69,33 @@ where
         .enable_all()
         .build()
         .unwrap();
+    let rt_handle = rt.handle().clone();
 
-    rt.block_on(async {
-        let application = cfg_select! {
-            target_os = "macos" => { macos::start_application() }
+    let handle = rt.spawn(async {
+        task::yield_now().await; // the yield_now is required to ensure the context is initialized
+        f().await;
+    });
+
+    let main_handle = rt.spawn(async move {
+        let (tx, _) = broadcast::channel(32);
+
+        let application = {
+            let application: Box<dyn PlatformContext> = Box::new(cfg_select! {
+                target_os = "macos" => { macos::start_application(tx.clone(), rt_handle.clone()) }
+            });
+
+            CONTEXT.set(application).ok().expect("a gl context already defined");
+            CONTEXT.get().unwrap()
         };
-
-        let (tx, rx) = broadcast::channel(10);
-        EVENTS.get_or_init(|| rx);
-
-        let handle = rt.spawn(async {
-            f().await;
-        });
 
         let mut ticker = time::interval(Duration::from_millis(10));
         let mut vec = Vec::new();
 
         loop {
-            if handle.is_finished() {
+            if handle.is_finished() || SHOULD_TERMINATE.load(Ordering::Relaxed) {
                 break;
             }
-            
+
             ticker.tick().await;
             application.poll_events(&mut vec);
 
@@ -83,11 +103,17 @@ where
                 tx.send(event).unwrap();
             }
         }
-    })
+    });
+
+    rt.block_on(main_handle).expect("oh no! event loop failed");
 }
 
-pub(super) fn subscribe_events() -> broadcast::Receiver<ApplicationEvent> {
-    EVENTS.get().expect("Not called in bool_gl context").resubscribe()
+pub fn context() -> &'static dyn PlatformContext {
+    &**CONTEXT.get().expect("Not called in bool_gl context")
+}
+
+pub(super) fn mark_should_terminate() {
+    SHOULD_TERMINATE.store(true, Ordering::Relaxed);
 }
 
 #[derive(Debug, Clone)]

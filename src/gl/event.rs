@@ -1,21 +1,21 @@
-use alloc::string::String;
-use std::marker::PhantomData;
-use std::ptr::NonNull;
-use tokio::sync::broadcast;
 use crate::gl::ptr::OpaqueInner;
-use crate::gl::subscribe_events;
+use alloc::string::String;
+use std::sync::{Arc, RwLock};
+use tokio::sync::{oneshot, SetOnce};
+
+pub trait BackendEvent {
+    fn timestamp(&self) -> u64;
+}
 
 pub(super) mod internal {
     use crate::gl::event::ApplicationEvent;
-    use std::io;
     use std::prelude::rust_2015::Vec;
-
-    pub trait BackendEvent {
-        fn timestamp(&self) -> u64;
-    }
+    use tokio::runtime::Handle;
 
     pub trait ApplicationEventSource {
         fn poll_events(&self, events: &mut Vec<ApplicationEvent>);
+
+        fn async_handle(&self) -> &Handle;
     }
 }
 
@@ -36,7 +36,10 @@ pub enum MouseAction {
     Exited,
 }
 
-#[derive(Debug, Clone)]
+// For each event, the Clone implementation should be platform-dependent. The inner pointer should
+// be cloned using OS-specific methods.
+
+#[derive(Debug)]
 pub struct MouseEvent {
     pub button: MouseButton,
     pub location: (f64, f64),
@@ -46,7 +49,7 @@ pub struct MouseEvent {
     pub(super) inner: OpaqueInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct KeyEvent {
     pub key: String,
     pub caps: bool,
@@ -58,7 +61,7 @@ pub struct KeyEvent {
     pub(super) inner: OpaqueInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct WheelEvent {
     pub delta_x: f64,
     pub delta_y: f64,
@@ -66,14 +69,14 @@ pub struct WheelEvent {
     pub(super) inner: OpaqueInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PeriodicEvent {
     pub(super) inner: OpaqueInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ShouldTerminateEvent {
-    pub(super) replied: bool, // used to reply on drop if not done
+    pub(super) notifier: Arc<SetOnce<bool>>, // used to drop daemon thread if platform requires it
     pub(super) inner: OpaqueInner,
 }
 
@@ -85,20 +88,4 @@ pub enum ApplicationEvent {
     Periodic(PeriodicEvent),
     ShouldTerminate(ShouldTerminateEvent),
     WindowClosed,
-}
-
-pub struct Events {
-    receiver: broadcast::Receiver<ApplicationEvent>,
-}
-
-impl Events {
-    pub fn context() -> Self {
-        Self {
-            receiver: subscribe_events(),
-        }
-    }
-
-    pub async fn poll(&mut self) -> ApplicationEvent {
-        self.receiver.recv().await.unwrap()
-    }
 }

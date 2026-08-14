@@ -18,6 +18,10 @@ impl OpaqueInner {
         Self(non_null.cast())
     }
 
+    pub const fn dangling() -> Self {
+        Self(NonNull::dangling())
+    }
+
     /// # Safety
     ///
     /// The caller must ensure that the pointer is non-null.
@@ -51,6 +55,7 @@ impl OpaqueInner {
     /// # Safety
     ///
     /// The pointer must represent a `T`. This will cast to `*mut T` and drop the object.
+    #[inline]
     pub unsafe fn drop_in_place<T>(self) {
         unsafe { self.0.cast::<T>().drop_in_place() }
     }
@@ -68,7 +73,10 @@ mod objc {
             unsafe { Self::new_unchecked(Retained::into_raw(ptr)) }
         }
 
-        pub fn into_objc<T: Message>(self) -> Retained<T> {
+        /// # Safety
+        ///
+        /// The pointer must represent a `Retained<T>`, be well-aligned and non-null.
+        pub unsafe fn into_objc<T: Message>(self) -> Retained<T> {
             unsafe { Retained::from_raw(self.0.cast().as_ptr()).unwrap() }
         }
 
@@ -76,8 +84,10 @@ mod objc {
         ///
         /// The pointer must represent a `Retained<T>`. This will cast to `*const Retained<T>` and
         /// drop the object.
+        #[inline]
         pub unsafe fn objc_drop_in_place<T: Message>(self) {
-            unsafe { self.0.cast::<Retained<T>>().drop_in_place() }
+            // into_objc makes the Retained object, and Rust RAII drops it before it return.
+            unsafe { self.into_objc::<T>() };
         }
     }
 }

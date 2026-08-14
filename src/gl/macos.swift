@@ -49,6 +49,11 @@ final class CPGEDelegate: NSObject, NSApplicationDelegate {
             self.data
         )
     }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        cpge_macos_should_terminate()
+        return .terminateLater
+    }
 }
 
 @c func cpge_init_application(_ width: Int, height: Int) {
