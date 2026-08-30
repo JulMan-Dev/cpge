@@ -26,12 +26,15 @@ where
     /// # Example
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// # use cpge::polynomials::HeapPolynomial;
     /// # use cpge::polynomials::taylor::HeapTaylorPolynomial;
     /// let f = HeapPolynomial::from([1.0, 2.0, 3.0]); // 1 + 2x + 3x^2
     /// let taylor: HeapTaylorPolynomial<f64> = f.taylor_at_0();
     /// let g = taylor.to_polynomial();
     /// assert_eq!(f, g); // f = g
+    /// # }
     /// ```
     pub fn to_polynomial(&self) -> Polynomial<T, CAP>
     where

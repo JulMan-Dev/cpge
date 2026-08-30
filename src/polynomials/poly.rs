@@ -527,10 +527,13 @@ where
     /// # Example
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// # use cpge::polynomials::HeapPolynomial;
     /// let f = HeapPolynomial::from([1, 2]); // 1 + 2x
     /// let y = f.apply(2); // 1 + 2 * 2 = 5
     /// assert_eq!(y, 5);
+    /// # }
     /// ```
     pub fn apply(&self, x: T) -> T {
         self.0.iter()

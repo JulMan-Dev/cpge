@@ -7,11 +7,12 @@ use crate::mem::Living;
 use alloc::{boxed::Box, string::ToString};
 use core::borrow::{Borrow, BorrowMut};
 use core::cell::UnsafeCell;
-use core::fmt::Write;
+#[cfg(feature = "alloc")]
+use core::fmt::{self, Write};
 use core::marker::PhantomPinned;
 use core::mem::MaybeUninit;
 use core::ops::{Add, Deref, DerefMut, Index, IndexMut, Mul};
-use core::{fmt, mem};
+use core::mem;
 use num_traits::{ConstOne, ConstZero, Float, Num, Zero};
 
 /// A row-major `R`x`C` matrix.
@@ -139,8 +140,8 @@ where
     ///     [1, 0, 3],
     ///     [8, 1, 9],
     /// ]);
-    /// assert_eq!(&*a * &*m, &*m * &*a);
-    /// assert_eq!(&*a * &*m, a);
+    /// assert_eq!(&a * &m, &m * &a);
+    /// assert_eq!(&a * &m, a);
     /// ```
     pub fn identity() -> Self {
         let mut matrix = Self::zero();

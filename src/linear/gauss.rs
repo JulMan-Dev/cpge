@@ -6,6 +6,8 @@ use num_traits::Num;
 /// This implements `Copy`, `Clone`, `Debug` and `Default` (which is no-op).
 ///
 /// ```
+/// # #[cfg(feature = "alloc")]
+/// # {
 /// # use cpge::linear::{Matrix, MatrixRowOperation};
 /// let original = Matrix::from([[1, 2], [3, 4]]);
 ///
@@ -15,6 +17,7 @@ use num_traits::Num;
 ///
 /// m.replay_steps_mut(&steps); // revert to original
 /// assert_eq!(m, original);
+/// # }
 /// ```
 #[derive(Copy, Clone, Debug)]
 pub enum MatrixRowOperation<T>
