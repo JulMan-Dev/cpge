@@ -17,10 +17,12 @@ impl fmt::Debug for OpaqueInner {
 }
 
 impl OpaqueInner {
+    #[inline]
     pub const fn new<T>(non_null: NonNull<T>) -> Self {
         Self(non_null.cast())
     }
 
+    #[inline]
     pub const fn dangling() -> Self {
         Self(NonNull::dangling())
     }
@@ -28,14 +30,17 @@ impl OpaqueInner {
     /// # Safety
     ///
     /// The caller must ensure that the pointer is non-null.
+    #[inline]
     pub const unsafe fn new_unchecked<T>(ptr: *mut T) -> Self {
         Self::new(unsafe { NonNull::new_unchecked(ptr) })
     }
 
+    #[inline]
     pub const fn from_ref<T>(ptr: &T) -> Self {
         Self::new(NonNull::from_ref(ptr))
     }
 
+    #[inline]
     pub const fn from_mut<T>(ptr: &mut T) -> Self {
         Self::new(NonNull::from_mut(ptr))
     }
@@ -43,6 +48,7 @@ impl OpaqueInner {
     /// # Safety
     ///
     /// The inner pointer must be non-null, well-aligned, and represent `T`.
+    #[inline]
     pub const unsafe fn as_ref<'a, T>(self) -> &'a T {
         unsafe { self.0.cast().as_ref() }
     }
@@ -51,6 +57,7 @@ impl OpaqueInner {
     ///
     /// The inner pointer must be castable a mutable reference of `T`, meaning it must represent a
     /// `T`, must be the unique reference to `T` and be non-null and well-aligned.
+    #[inline]
     pub const unsafe fn as_mut<'a, T>(self) -> &'a mut T {
         unsafe { self.0.cast().as_mut() }
     }
@@ -72,6 +79,7 @@ mod objc {
     use objc2::rc::Retained;
 
     impl OpaqueInner {
+        #[inline]
         pub fn from_objc<T: Message>(ptr: Retained<T>) -> Self {
             unsafe { Self::new_unchecked(Retained::into_raw(ptr)) }
         }
@@ -79,6 +87,7 @@ mod objc {
         /// # Safety
         ///
         /// The pointer must represent a `Retained<T>`, be well-aligned and non-null.
+        #[inline]
         pub unsafe fn into_objc<T: Message>(self) -> Retained<T> {
             unsafe { Retained::from_raw(self.0.cast().as_ptr()).unwrap() }
         }
