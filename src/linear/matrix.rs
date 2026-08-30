@@ -472,6 +472,75 @@ where
     }
 }
 
+impl<T, const R: usize, const C: usize, const S: usize> Mul<&Matrix<T, S, C>> for Matrix<T, R, S>
+where
+    T: Default + Copy + Num,
+{
+    type Output = Matrix<T, R, C>;
+
+    fn mul(self, rhs: &Matrix<T, S, C>) -> Self::Output {
+        let mut ret = Matrix::zero();
+
+        for i in 0..R {
+            for j in 0..C {
+                let p = &mut ret[(i, j)];
+
+                for k in 0..S {
+                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                }
+            }
+        }
+
+        ret
+    }
+}
+
+impl<T, const R: usize, const C: usize, const S: usize> Mul<Matrix<T, S, C>> for &Matrix<T, R, S>
+where
+    T: Default + Copy + Num,
+{
+    type Output = Matrix<T, R, C>;
+
+    fn mul(self, rhs: Matrix<T, S, C>) -> Self::Output {
+        let mut ret = Matrix::zero();
+
+        for i in 0..R {
+            for j in 0..C {
+                let p = &mut ret[(i, j)];
+
+                for k in 0..S {
+                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                }
+            }
+        }
+
+        ret
+    }
+}
+
+impl<T, const R: usize, const C: usize, const S: usize> Mul<&Matrix<T, S, C>> for &Matrix<T, R, S>
+where
+    T: Default + Copy + Num,
+{
+    type Output = Matrix<T, R, C>;
+
+    fn mul(self, rhs: &Matrix<T, S, C>) -> Self::Output {
+        let mut ret = Matrix::zero();
+
+        for i in 0..R {
+            for j in 0..C {
+                let p = &mut ret[(i, j)];
+
+                for k in 0..S {
+                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                }
+            }
+        }
+
+        ret
+    }
+}
+
 pub trait DoubleRREF<T, const R: usize, const A: usize, const B: usize> {
     fn rref_mut(&mut self);
 }

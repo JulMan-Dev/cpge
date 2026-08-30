@@ -613,7 +613,7 @@ where
                 i += 1;
                 continue;
             };
-            let v_i = v[(i, 0)];
+            let v_i = v[(0, i)];
 
             self.swap_lines(i, j);
             recorder.push(Swap(i, j));
