@@ -1,16 +1,11 @@
-use alloc::borrow::ToOwned;
 use core::num::FpCategory;
 use num_traits::{Float, Num, NumCast, One, ToPrimitive, Zero};
-use crate::linear::Matrix;
 
 /// This is an internal type that implements [`From<usize>`](From) when using `f64`.
 #[derive(PartialEq, PartialOrd, Copy, Clone, Debug, Default)]
 pub struct Wrapped<T>(pub T);
 
 fn test() {
-    let matrix = Matrix::from_array([[1, 2], [3, 4]]);
-
-    let heap = (*matrix).to_owned();
 }
 
 macro_rules! impl_base {
