@@ -28,8 +28,8 @@ where
 {
     /// Forces `self` to be represented using [`Cartesian`](Plane3::Cartesian).
     ///
-    /// Note: `T` must be a `Float` because this uses [`Matrix::gaussian_elimination`] which
-    /// requires it.
+    /// Note: `T` must be a `Float` because this uses [`crate::linear::MatrixView::gaussian_elimination`]
+    /// which requires it.
     pub fn to_cartesian(&self) -> Self
     where
         T: Float,

@@ -537,7 +537,7 @@ where
     }
 
     /// Computes the derivative of `self`. This changes in place, which may be preferred over
-    /// [`derivative`](Self::derivative) if you won't reuse the previous polynomial.
+    /// `derivative` if you won't reuse the previous polynomial.
     pub fn derivative_mut(&mut self)
     where
         T: NumCast,

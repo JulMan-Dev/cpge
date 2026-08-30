@@ -25,7 +25,7 @@ where
     T: Default + Copy + Num,
 {
     /// Checks if `vec` is a solution. This requires `T` to be `Float` because it uses
-    /// [`gaussian_elimination`](Matrix::gaussian_elimination).
+    /// [`gaussian_elimination`](crate::linear::MatrixView::gaussian_elimination).
     pub fn is_in(&self, vec: &Vector<T, D>) -> bool
     where
         T: Float,

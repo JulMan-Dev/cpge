@@ -1,6 +1,6 @@
 use core::mem;
 
-/// A trait that adds a method, [`spec_window`].
+/// A trait that adds a method, [`spec_window`](Self::spec_window).
 pub trait SpecWindow<T> {
     /// Returns a new sliding window iterator.
     fn spec_window<const N: usize>(&mut self) -> SWindow<'_, T, N>;
