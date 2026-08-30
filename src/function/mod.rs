@@ -189,7 +189,7 @@ where
                 let b = $b.evaluate(vtable, map);
 
                 Operation::from_raw_operation(if let Some((a, b)) = a.unwrap_value().zip(b.unwrap_value()) {
-                    let v = vtable.add.unwrap()(a, b);
+                    let v = vtable.$fn.unwrap()(a, b);
                     FunctionOperation::Singleton(v)
                 } else {
                     $o.clone()
@@ -198,7 +198,7 @@ where
         }
 
         match self {
-            Self::Unknown(i) => panic!("found unknown {i} operation"),
+            Self::Unknown(i) => map[*i].clone(),
             v @ Self::Singleton(_) => Operation::from_raw_operation(v.clone()),
             o @ Self::Add(a, b) => pat_2!(o @ add, a, b),
             o @ Self::Sub(a, b) => pat_2!(o @ sub, a, b),

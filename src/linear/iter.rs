@@ -83,12 +83,11 @@ mod heap {
             }
 
             self.current_rev -= 1;
-            let next = match self.mode {
+            
+            match self.mode {
                 IterMode::Row => self.matrix.get((self.index, self.current_rev)),
                 IterMode::Col => self.matrix.get((self.current_rev, self.index)),
-            };
-
-            next
+            }
         }
     }
 
