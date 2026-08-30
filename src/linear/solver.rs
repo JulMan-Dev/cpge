@@ -167,6 +167,7 @@ where
         }
     }
 
+    #[allow(unused)]
     fn find_particular_solution(matrix: &Matrix<T, R, C>, right: &Vector<T, R>) -> Option<Vector<T, C>>
     where
         T: Float,

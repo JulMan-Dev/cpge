@@ -1,11 +1,10 @@
-use arrayvec::ArrayVec;
-use alloc::boxed::Box;
 use crate::linear::InnerDotProductSpace;
 use crate::linear::family::VectorFamily;
 use crate::linear::matrix::Matrix;
 use crate::linear::vector::Vector;
-use num_traits::{Float, Num, Zero};
 use crate::mem::Owned;
+use arrayvec::ArrayVec;
+use num_traits::{Float, Num, Zero};
 
 /// Represents a 3D plane. It could be either in Cartesian or in parametric notation.
 ///
@@ -156,10 +155,10 @@ where
                         Plane3Intersection::Line(Line3::Cartesian(rref.data))
                     }
                     1 => {
-                        let eq_sum = rref.data[1].iter()
+                        let _eq_sum = rref.data[1].iter()
                             .take(3)
                             .fold(T::zero(), |acc, &x| acc + x);
-                        let right = rref[(1, 3)];
+                        let _right = rref[(1, 3)];
 
                         todo!();
                     },

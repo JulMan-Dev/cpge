@@ -182,7 +182,7 @@ where
         }
     }
 
-    pub fn evaluate(&self, vtable: &VTable<T>, map: &[Operation<T>]) -> Operation<T> {
+    pub(self) fn evaluate(&self, vtable: &VTable<T>, map: &[Operation<T>]) -> Operation<T> {
         macro_rules! pat_2 {
             ($o:ident @ $fn:ident, $a:ident, $b:ident) => {{
                 let a = $a.evaluate(vtable, map);

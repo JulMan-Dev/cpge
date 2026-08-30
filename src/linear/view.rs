@@ -1935,5 +1935,3 @@ use alloc::borrow::ToOwned;
         &MatrixView<T>, &T, (_, _),
     );
 }
-
-pub use heap::*;
