@@ -2,7 +2,7 @@
 
 use crate::gl::context::PlatformContext;
 use crate::gl::event::ApplicationEvent::{Key, Mouse};
-use crate::gl::event::{ApplicationEvent, BackendEvent, KeyEvent, MouseAction, MouseButton, MouseEvent, PeriodicEvent, ShouldTerminateEvent, WheelEvent, internal};
+use crate::gl::event::{internal, ApplicationEvent, BackendEvent, KeyEvent, MouseAction, MouseButton, MouseEvent, PeriodicEvent, ShouldTerminateEvent, WheelEvent, WillTerminateEvent};
 use crate::gl::ptr::OpaqueInner;
 use crate::gl::{Data, GL, context, init_vulkan};
 use alloc::string::ToString;
@@ -13,9 +13,12 @@ use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, N
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSProcessInfo};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::{mem, thread};
+use std::iter::once;
+use std::sync::atomic::AtomicUsize;
+use tokio::io::AsyncWriteExt;
 use tokio::runtime::Handle;
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::{SetOnce, broadcast};
+use tokio::sync::{broadcast, mpsc, SetOnce};
 use tokio::task;
 
 #[link(name = "cpge-native")]
@@ -84,6 +87,15 @@ impl BackendEvent for ShouldTerminateEvent {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         // ShouldTerminateEvent is not a NSEvent, it is an artificial event
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
+    }
+}
+
+impl BackendEvent for WillTerminateEvent {
+    fn timestamp(&self) -> f64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // same as ShouldTerminateEvent
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
     }
 }
@@ -319,6 +331,17 @@ impl Drop for ShouldTerminateEvent {
     }
 }
 
+impl Clone for WillTerminateEvent {
+    fn clone(&self) -> Self {
+        Self {
+            counter: self.counter.clone(),
+            inner: self.inner,
+        }
+    }
+}
+
+// no need for drop, as the event is processed when every Sender instance is dropped
+
 #[unsafe(export_name = "cpge_macos_should_terminate")]
 extern "C-unwind" fn swift_notify_should_terminate() {
     let ctx: &MacOsPoller = context().downcast_context().unwrap();
@@ -343,7 +366,6 @@ extern "C-unwind" fn swift_notify_should_terminate() {
             task::yield_now().await;
             *once.wait().await
         });
-        std::println!("should terminate");
         unsafe { application.into_objc::<NSApplication>().replyToApplicationShouldTerminate(value) };
     }).unwrap();
 }
@@ -361,4 +383,22 @@ impl ShouldTerminateEvent {
     pub fn reply_ready(&mut self) {
         let _ = self.notifier.set(true);
     }
+}
+
+#[unsafe(export_name = "cpge_macos_will_terminate")]
+extern "C-unwind" fn swift_notify_will_terminate() {
+    let ctx: &MacOsPoller = context().downcast_context().unwrap();
+
+    let counter = Arc::new(());
+    ctx.broadcast.send(ApplicationEvent::WillTerminate(WillTerminateEvent {
+        counter: counter.clone(),
+        inner: OpaqueInner::dangling(),
+    })).unwrap();
+
+    while Arc::strong_count(&counter) > 1 {
+        thread::yield_now();
+    }
+
+    // shutting down event loop now
+    context().block_on_shutdown();
 }

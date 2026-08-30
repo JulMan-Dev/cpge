@@ -55,8 +55,10 @@ pub mod context {
     use std::pin::Pin;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
     use tokio::runtime::Handle;
     use tokio::sync::{broadcast, mpsc};
+    use crate::gl::SHOULD_TERMINATE;
 
     pub struct Context {
         pub(super) inner: Arc<dyn PlatformContext>,
@@ -92,6 +94,13 @@ pub mod context {
 
         pub(super) fn downcast_context<T: PlatformContext>(&self) -> Option<&T> {
             (&*self.inner as &(dyn Any + Send + Sync)).downcast_ref()
+        }
+
+        pub(super) fn block_on_shutdown(&self) {
+            SHOULD_TERMINATE.store(true, Ordering::SeqCst);
+            while !SHOULD_TERMINATE.load(Ordering::SeqCst) {
+                thread::yield_now();
+            }
         }
     }
 
@@ -174,6 +183,8 @@ where
                     task::yield_now().await;
                 }
             });
+
+            drop(rt);
         }).unwrap()
     };
 
@@ -237,6 +248,7 @@ where
     // synchronously wait for runtime thread to end before returning
     SHOULD_TERMINATE.store(true, Ordering::Relaxed);
     handle.join().unwrap();
+    SHOULD_TERMINATE.store(false, Ordering::Relaxed);
 }
 
 /// Gets the current context.

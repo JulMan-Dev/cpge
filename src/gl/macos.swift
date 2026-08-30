@@ -23,7 +23,6 @@ final class CPGEDelegate: NSObject, NSApplicationDelegate {
         view.layer = self.layer
         self.window.contentView = view
 
-        
         self.data = .allocate(byteCount: 0, alignment: 0)
         cpge_make_vulkan_data(&self.data)
     }
@@ -53,6 +52,10 @@ final class CPGEDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         cpge_macos_should_terminate()
         return .terminateLater
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        cpge_macos_will_terminate()
     }
 }
 
