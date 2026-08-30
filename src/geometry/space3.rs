@@ -1,4 +1,4 @@
-use crate::linear::InnerDotProductSpace;
+use crate::linear::{DoubleRREF, InnerDotProductSpace};
 use crate::linear::family::VectorFamily;
 use crate::linear::matrix::Matrix;
 use crate::linear::vector::Vector;
@@ -42,8 +42,8 @@ where
         let (zero, one) = (T::zero(), T::one());
 
         // We need to do Gaussian reduction
-        let mut matrix = Matrix::from_vectors(&[u.clone(), v.clone()]);
-        let mut augmented = Matrix::<T, 3, 4>::from([
+        let matrix = Matrix::from_vectors(&[u.clone(), v.clone()]);
+        let augmented = Matrix::<T, 3, 4>::from([
             [one, zero, zero, -point.scalars[0]],
             [zero, one, zero, -point.scalars[1]],
             [zero, zero, one, -point.scalars[2]],
@@ -51,17 +51,15 @@ where
 
         // augmented will contain the coefficients for Cartesian once elimination done.
         // first we play on base `matrix`.
-        let steps = matrix.record_gaussian_elimination_mut();
+        let mut pair = (matrix, augmented);
+        pair.rref_mut();
 
-        if matrix.rank_float() < 2 {
+        if pair.0.rank_float() < 2 {
             panic!("u and v must be linearly independent");
         }
 
-        // replay on `augmented`
-        augmented.replay_steps_mut(&steps);
-
         // taking the last row, it's the cartesian equation
-        Self::Cartesian(augmented.data[2])
+        Self::Cartesian(pair.1.data[2])
     }
 
     /// Forces `self` to be represented using [`Parametric`](Plane3::Parametric).
@@ -289,16 +287,15 @@ where
                     *b[0..3].as_array().unwrap(),
                 ]);
                 let right = Matrix::from([[a[3]], [b[3]]]);
+                let mut pair = (left, right);
+                pair.rref_mut();
 
-                let (rref, steps) = left.record_rref();
-                let rref_right = right.replay_steps(&steps);
-
-                match rref.rank_float() {
+                match pair.0.rank_float() {
                     // cannot be a line, could only represent (0, 0, 0), not sure
                     0 => {
                         let _is_right_zero = 'a: {
                             for k in 0..3usize {
-                                if rref_right[(k, 0)].abs() > T::epsilon() {
+                                if pair.1[(k, 0)].abs() > T::epsilon() {
                                     break 'a false;
                                 }
                             }

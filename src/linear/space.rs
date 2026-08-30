@@ -41,13 +41,13 @@ where
             // we know it will produce kinda identity, so we can just take the steps and ignore
             // the result matrix
             let mut matrix = Matrix::from_vectors(array);
-            matrix.record_rref_mut()
+            matrix.record_composition_rref_mut()
         };
 
         Self {
             family,
             minimal_space: minimal.into_inner(),
-            rref_steps: MatrixRowOperation::composition_matrix(&steps),
+            rref_steps: steps,
         }
     }
 
@@ -149,8 +149,8 @@ where
         };
         let rref_right = self.rref_steps.clone() * Matrix::from_vectors(from_ref(vec));
 
-        for (i, row) in rref.rows().enumerate().rev() {
-            let is_zero = row.iter().all(|&x| x.abs() <= T::epsilon());
+        for i in (0..rref.count_rows()).rev() {
+            let is_zero = rref.view(i).values().all(|&x| x.abs() <= T::epsilon());
 
             if is_zero && rref_right[(i, 0)].abs() > T::epsilon() {
                 // not possible, returning false
@@ -205,7 +205,7 @@ where
     }
 }
 
-
+#[cfg(feature = "alloc")]
 mod heap {
     use alloc::boxed::Box;
     use core::array::from_ref;
@@ -400,4 +400,5 @@ mod heap {
     }
 }
 
+#[cfg(feature = "alloc")]
 pub use heap::*;

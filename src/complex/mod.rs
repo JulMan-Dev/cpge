@@ -27,6 +27,7 @@ where
 }
 
 use BasicComplex::*;
+#[cfg(feature = "alloc")]
 use crate::polynomials::{basic_newton_binomial_heap, HeapPolynomial};
 
 impl<T> BasicComplex<T>
@@ -422,6 +423,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Float for BasicComplex<T>
 where
     T: Default + Copy + Num + Float,

@@ -8,13 +8,18 @@ crate-type = ["lib"]
 
 [features]
 default = []
-std = []
+alloc = []
+std = ["alloc"]
 gl = [
     "std",
     "dep:vulkano", "dep:vulkano-shaders", "dep:tokio",
     # macOS
     "dep:objc2", "dep:objc2-foundation", "dep:objc2-app-kit"
 ]
+
+[[example]]
+name = "simple-ui"
+required-features = ["gl"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6.4", optional = true }

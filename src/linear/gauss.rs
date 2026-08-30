@@ -42,7 +42,7 @@ where
 
     pub fn composition_matrix<const N: usize>(steps: &[Self]) -> Matrix<T, N> {
         steps.iter().rfold(Matrix::identity(), |acc, &l| {
-            (&*l.as_matrix::<N>() * &*acc).to_matrix().unwrap()
+            l.as_matrix::<N>() * acc
         })
     }
 }

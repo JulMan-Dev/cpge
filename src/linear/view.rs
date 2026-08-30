@@ -5,15 +5,15 @@
 use crate::linear::convolution::ConvolutionRows;
 use crate::linear::{Matrix, MatrixRowOperation, Positions};
 use crate::mem::{AbstractVec, Living};
-use alloc::vec;
-use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::vec::{vec, Vec};
 use core::cell::UnsafeCell;
 use core::mem;
 use core::mem::MaybeUninit;
 use core::ops::{Bound, Index, IndexMut, RangeBounds};
 use core::ptr::null_mut;
 use arrayvec::ArrayVec;
-use num_traits::{Float, Num, Zero};
+use num_traits::{ConstZero, Float, Num, Zero};
 
 pub(crate) type MatrixViewHeader = (*mut (), usize, [usize; 5]);
 
@@ -174,18 +174,66 @@ where
         }
     }
 
+    pub const fn to_matrix_const<const R: usize, const C: usize>(&self) -> Option<Matrix<T, R, C>>
+    where
+        T: ConstZero,
+    {
+        let (rows, cols) = self.dim();
+
+        if rows == R && cols == C {
+            let mut matrix = Matrix::<T, R, C>::ZERO;
+            let mut i = 0;
+
+            while i < R {
+                let mut array = [T::ZERO; C];
+                let mut j = 0;
+
+                while j < C {
+                    array[j] = *self.get((i, j)).unwrap();
+                    j += 1;
+                }
+
+                matrix.set_row(i, &array);
+                i += 1;
+            }
+
+            Some(matrix)
+        } else {
+            None
+        }
+    }
+
+    pub unsafe fn get_unchecked(&self, pos: (usize, usize)) -> &T {
+        unsafe {
+            self.as_slice().get_unchecked((self.rows.0 + pos.0) * self.stride + pos.1 + self.cols.0)
+        }
+    }
+
     pub const fn get(&self, pos: (usize, usize)) -> Option<&T> {
         if self.is_pos_in(pos) {
+            // we cannot use get_unchecked because is not const ready
             Some(&self.as_slice()[(self.rows.0 + pos.0) * self.stride + pos.1 + self.cols.0])
         } else {
             None
         }
     }
 
+    pub unsafe fn get_unchecked_mut(&mut self, pos: (usize, usize)) -> &mut T {
+        unsafe {
+            let start_rows = self.rows.0;
+            let start_cols = self.cols.0;
+            let stride = self.stride;
+            self.as_slice_mut().get_unchecked_mut((start_rows + pos.0) * stride + pos.1 + start_cols)
+        }
+    }
+
     pub const fn get_mut(&mut self, pos: (usize, usize)) -> Option<&mut T> {
         if self.is_pos_in(pos) {
+            // we cannot use get_unchecked because is not const ready
+            let start_rows = self.rows.0;
+            let start_cols = self.cols.0;
             let stride = self.stride;
-            Some(&mut self.as_slice_mut()[pos.0 * stride + pos.1])
+            Some(&mut self.as_slice_mut()[(start_rows + pos.0) * stride + pos.1 + start_cols])
         } else {
             None
         }
@@ -348,7 +396,7 @@ where
             i += 1;
         }
 
-        // SAFETY: every position are different
+        // SAFETY: every position is different
         unsafe { self.get_disjoint_mut_unchecked(positions) }
     }
 
@@ -362,17 +410,51 @@ where
     where
         T: Float,
     {
-        self.rows()
-            .filter(|row| row.iter().any(|x| x.abs() > T::epsilon()))
-            .count()
+        let (rows, cols) = self.dim();
+        let mut cur = (0, 0);
+        let mut count = 0;
+
+        for _ in 0..rows {
+            for _ in 0..cols {
+                // SAFETY: cur is a valid position within the matrix
+                unsafe {
+                    if self.get_unchecked(cur).abs() > T::epsilon() {
+                        count += 1;
+                        break;
+                    }
+                }
+                cur.1 += 1;
+            }
+            cur.0 += 1;
+            cur.1 = 0;
+        }
+
+        count
     }
 
     /// Computes the rank of the matrix. The matrix must be row echelon, do Gaussian elimination
     /// first.
     pub fn rank(&self) -> usize {
-        self.rows()
-            .filter(|row| row.iter().any(|x| !x.is_zero()))
-            .count()
+        let (rows, cols) = self.dim();
+        let mut cur = (0, 0);
+        let mut count = 0;
+
+        for _ in 0..rows {
+            for _ in 0..cols {
+                // SAFETY: cur is a valid position within the matrix
+                unsafe {
+                    if self.get_unchecked(cur).is_zero() {
+                        count += 1;
+                        break;
+                    }
+                }
+                cur.1 += 1;
+            }
+            cur.0 += 1;
+            cur.1 = 0;
+        }
+
+        count
     }
 
     #[inline]
@@ -409,7 +491,30 @@ where
             let mut k = 0;
 
             while k < cols {
-                let [i, j] = self.get_disjoint_mut([(i, k), (j, k)]).unwrap();
+                // SAFETY: Indices are valid and disjoint.
+                let [i, j] = unsafe {
+                    self.get_disjoint_mut_unchecked([(i, k), (j, k)]).unwrap()
+                };
+
+                (*i, *j) = (*j, *i);
+                k += 1;
+            }
+        }
+    }
+
+    pub const fn swap_cols(&mut self, i: usize, j: usize) {
+        let (cols, rows) = self.dim();
+
+        assert!(i < cols && j < cols, "invalid indices");
+
+        if i != j {
+            let mut k = 0;
+
+            while k < rows {
+                // SAFETY: Indices are valid and disjoint.
+                let [i, j] = unsafe {
+                    self.get_disjoint_mut_unchecked([(k, i), (k, j)]).unwrap()
+                };
 
                 (*i, *j) = (*j, *i);
                 k += 1;
@@ -485,7 +590,6 @@ where
         let (rows, cols) = self.dim();
 
         let mut i = 0;
-        let mut pivots: Vec<bool> = vec![false; Ord::max(rows, cols)];
 
         loop {
             if i == rows || i == cols {
@@ -494,18 +598,22 @@ where
 
             // working on row `i`.
             // looking on each row
-            let found = self.rows()
-                .enumerate()
-                .skip(i)
-                .find(|(_, x)| x[i].abs() > T::epsilon());
+            let found = 'a: {
+                for j in i..rows {
+                    if self[(j, i)].abs() > T::epsilon() {
+                        break 'a Some((j, self.view(j)));
+                    }
+                }
+
+                None
+            };
 
             let Some((j, v)) = found else {
                 // whole column is zero
-                pivots[i] = false;
                 i += 1;
                 continue;
             };
-            let v_i = *v[i];
+            let v_i = v[(i, 0)];
 
             self.swap_lines(i, j);
             recorder.push(Swap(i, j));
@@ -524,7 +632,6 @@ where
                 }
             }
 
-            pivots[i] = true;
             i += 1;
         }
     }
@@ -567,7 +674,8 @@ where
                 continue;
             }
 
-            let (pivot_index, _) = self.row(i)
+            let (pivot_index, _) = self.view(i)
+                .values()
                 .enumerate()
                 .find(|(_, x)| x.abs() > T::epsilon())
                 .expect("pivot must exist");
@@ -1228,9 +1336,10 @@ where
 {
 }
 
+#[cfg(feature = "alloc")]
 mod heap {
     use core::ops::Mul;
-use alloc::borrow::ToOwned;
+    use alloc::borrow::ToOwned;
     use alloc::boxed::Box;
     use alloc::vec;
     use alloc::vec::Vec;

@@ -102,6 +102,7 @@ impl<T, const CAP: usize> AbstractVec<T> for ArrayVec<T, CAP> {
     }
 }
 
+#[cfg(feature = "alloc")]
 mod heap {
     use alloc::vec::Vec;
     use core::mem::MaybeUninit;

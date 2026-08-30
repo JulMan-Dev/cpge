@@ -153,6 +153,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 mod heap {
     use alloc::boxed::Box;
     use alloc::vec;
@@ -488,6 +489,7 @@ mod heap {
     }
 }
 
+#[cfg(feature = "alloc")]
 pub use heap::*;
 
 #[repr(transparent)]

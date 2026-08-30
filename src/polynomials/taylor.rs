@@ -48,6 +48,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 mod heap {
     use alloc::boxed::Box;
     use num_traits::{Float, Num, NumCast, Zero};
@@ -132,4 +133,5 @@ mod heap {
     }
 }
 
+#[cfg(feature = "alloc")]
 pub use heap::*;

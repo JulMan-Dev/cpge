@@ -1,5 +1,6 @@
 use crate::linear::view::Goggles;
 
+#[cfg(feature = "alloc")]
 mod heap {
     //#region MatrixCellIter
 
@@ -83,7 +84,7 @@ mod heap {
             }
 
             self.current_rev -= 1;
-            
+
             match self.mode {
                 IterMode::Row => self.matrix.get((self.index, self.current_rev)),
                 IterMode::Col => self.matrix.get((self.current_rev, self.index)),
@@ -493,6 +494,7 @@ mod heap {
     //#endregion
 }
 
+#[cfg(feature = "alloc")]
 pub use heap::*;
 
 pub struct Positions<I> {

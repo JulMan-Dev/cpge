@@ -83,7 +83,8 @@ where
     where
         T: Float,
     {
-        let rref = matrix.rref();
+        let mut rref = matrix.clone();
+        rref.rref_mut();
 
         if rref.rank_float() == C {
             // easy, only 0 is solution
@@ -102,14 +103,16 @@ where
             let mut out = [None; C];
             let mut last_k = None;
 
-            for (i, row) in rref.rows().enumerate() {
-                let found = row.iter()
+            for i in 0..rref.count_rows() {
+                let found = rref.view(i)
+                    .values()
                     .enumerate()
                     .skip(last_k.unwrap_or(0))
-                    .find(|(_, x)| x.abs() > T::epsilon());
+                    .find(|(_, x)| x.abs() > T::epsilon())
+                    .map(|(k, _)| k);
 
                 match found {
-                    Some((k, _)) => {
+                    Some(k) => {
                         last_k.replace(k);
                         out[k].replace(i);
                     },
@@ -168,6 +171,7 @@ where
     }
 
     #[allow(unused)]
+    #[cfg(feature = "alloc")]
     fn find_particular_solution(matrix: &Matrix<T, R, C>, right: &Vector<T, R>) -> Option<Vector<T, C>>
     where
         T: Float,

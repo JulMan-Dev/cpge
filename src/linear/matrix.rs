@@ -1,7 +1,9 @@
+#[cfg(feature = "alloc")]
 use crate::linear::heap_matrix::HeapMatrix;
 use crate::linear::vector::Vector;
 use crate::linear::view::{make_header, update_header, IntoGoggles, MatrixView, MatrixViewHeader, RowRecorder};
 use crate::mem::Living;
+#[cfg(feature = "alloc")]
 use alloc::{boxed::Box, string::ToString};
 use core::borrow::{Borrow, BorrowMut};
 use core::cell::UnsafeCell;
@@ -48,6 +50,7 @@ where
         goggles.into_goggles().see_through_mut(self)
     }
 
+    #[cfg(feature = "alloc")]
     pub fn into_heap(self) -> HeapMatrix<T> {
         HeapMatrix::new(
             Box::from(self.data.as_flattened()),
@@ -101,7 +104,7 @@ where
         }
     }
 
-    pub fn set_row(&mut self, row: usize, values: &[T; C]) -> bool {
+    pub const fn set_row(&mut self, row: usize, values: &[T; C]) -> bool {
         if row < R {
             self.data[row] = *values;
             true
@@ -221,6 +224,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T, const R: usize, const C: usize> PartialEq<HeapMatrix<T>> for Matrix<T, R, C>
 where
     T: Copy + Default + Num,
@@ -331,6 +335,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T, const R: usize, const C: usize> fmt::Display for Matrix<T, R, C>
 where
     T: Default + Copy + Num + fmt::Display,
@@ -381,6 +386,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T, const R: usize, const C: usize> TryFrom<HeapMatrix<T>> for Matrix<T, R, C>
 where
     T: Default + Num + Copy,

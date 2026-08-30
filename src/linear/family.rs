@@ -1,8 +1,10 @@
 use crate::linear::basis::VectorBasis;
+#[cfg(feature = "alloc")]
 use crate::linear::heap_matrix::HeapMatrix;
 use crate::linear::matrix::Matrix;
 use crate::linear::vector::Vector;
 use crate::mem::{FromOwned, Owned};
+#[cfg(feature = "alloc")]
 use alloc::{boxed::Box, vec};
 use arrayvec::ArrayVec;
 use core::mem;
@@ -29,6 +31,7 @@ where
     }
 
     /// Returns a vector family that contains no elements, neither zero.
+    #[cfg(feature = "alloc")]
     pub fn empty_heap() -> Owned<Self, Box<[Vector<T, N>]>> {
         Owned::new(Box::from([]))
     }
@@ -41,6 +44,7 @@ where
     }
 
     /// Returns a vector family that contains only the zero vector.
+    #[cfg(feature = "alloc")]
     pub fn only_zero_heap() -> Owned<Self, Box<[Vector<T, N>]>> {
         Owned::new(Box::new([Vector::zero()]))
     }
@@ -59,6 +63,7 @@ where
     /// it uses the heap.
     ///
     /// Use [`const_standard_basis`](Self::const_standard_basis) if you can.
+    #[cfg(feature = "alloc")]
     pub fn standard_basis_heap() -> Owned<Self, Box<[Vector<T, N>]>> {
         let mut vectors = Box::new_uninit_slice(N);
 
@@ -121,7 +126,8 @@ where
         assert_eq!(vectors.len(), N);
 
         let array: &[_; N] = vectors.as_array().unwrap();
-        let matrix = Matrix::from_vectors(array).gaussian_elimination();
+        let mut matrix = Matrix::from_vectors(array);
+        matrix.gaussian_elimination_mut();
 
         matrix.rank_float() == self.vectors.len()
     }
@@ -131,6 +137,7 @@ where
     /// To check if it's a basis, use [`as_basis`](Self::as_basis).
     ///
     /// Uses Gaussian elimination.
+    #[cfg(feature = "alloc")]
     pub fn is_generator(&self) -> bool
     where
         T: Float,
@@ -161,8 +168,8 @@ where
         }
 
         let array = self.vectors.as_array::<N>().expect("Vec wasn't resized to N");
-        let matrix = Matrix::from_vectors(array);
-        let echelon = matrix.gaussian_elimination();
+        let mut echelon = Matrix::from_vectors(array);
+        echelon.gaussian_elimination_mut();
 
         if echelon.rank_float() != N {
             return None;
@@ -215,6 +222,7 @@ where
     /// Returns a minimal independent vector family that is equivalent to `self`.
     ///
     /// The returned family may contain at most `n` vectors.
+    #[cfg(feature = "alloc")]
     pub fn minimal_independent_heap(&self) -> Owned<Self, Box<[Vector<T, N>]>>
     where
         T: Float,

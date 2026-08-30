@@ -4,6 +4,7 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 extern crate core;
 #[cfg(feature = "std")]
@@ -19,6 +20,7 @@ pub mod testing;
 pub mod complex;
 pub mod iter;
 pub mod mem;
+#[cfg(feature = "alloc")]
 pub mod function;
 #[cfg(feature = "gl")]
 pub mod gl;
