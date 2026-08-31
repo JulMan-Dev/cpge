@@ -203,6 +203,16 @@ where
         }
     }
 
+    /// Gets a reference to an element from the matrix without bound checking.
+    ///
+    /// This method is not const-ready because it uses `get_unchecked`, which is not const-ready
+    /// (rust-lang/rust#143775).
+    ///
+    /// A safer and const-ready implementation is available via the [`get`] method.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the position is within the bounds of the matrix.
     pub unsafe fn get_unchecked(&self, pos: (usize, usize)) -> &T {
         unsafe {
             self.as_slice().get_unchecked((self.rows.0 + pos.0) * self.stride + pos.1 + self.cols.0)
@@ -218,6 +228,16 @@ where
         }
     }
 
+    /// Gets a mutable reference to an element from the matrix without bound checking.
+    ///
+    /// This method is not const-ready because it uses `get_unchecked_mut`, which is not const-ready
+    /// (rust-lang/rust#143775).
+    ///
+    /// A safer and const-ready implementation is available via the [`get_mut`] method.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the position is within the bounds of the matrix.
     pub unsafe fn get_unchecked_mut(&mut self, pos: (usize, usize)) -> &mut T {
         unsafe {
             let start_rows = self.rows.0;
@@ -239,10 +259,52 @@ where
         }
     }
 
+    /// Makes a value iterator. The returned iterator yields all elements of the matrix, starting at
+    /// (0, 0) and ending at (rows - 1, cols - 1), in order.
+    ///
+    /// Note that the returned iterator does not implement [`DoubleEndedIterator`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use cpge::linear::Matrix;
+    /// let matrix = Matrix::from([
+    ///     [1, 2],
+    ///     [3, 4],
+    /// ]);
+    /// let mut i = 1;
+    ///
+    /// for elem in matrix.values() {
+    ///     assert_eq!(*elem, i);
+    ///     i += 1;
+    /// }
     pub const fn values(&'_ self) -> ViewValues<'_, T> {
         ViewValues { view: self, pos: Some((0, 0)) }
     }
 
+    /// Makes a mutable value iterator. The returned iterator yields mutable reference for all
+    /// elements of the matrix, starting (0, 0) and ending at (rows - 1, cols - 1), in order.
+    ///
+    /// Note that the returned iterator does not implement [`DoubleEndedIterator`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use cpge::linear::Matrix;
+    /// let mut matrix = Matrix::from([
+    ///     [1, 2],
+    ///     [3, 4],
+    /// ]);
+    ///
+    /// for elem in matrix.values_mut() {
+    ///     *elem *= 2;
+    /// }
+    ///
+    /// assert_eq!(matrix, Matrix::from([
+    ///     [2, 4],
+    ///     [6, 8],
+    /// ]))
+    /// ```
     pub const fn values_mut(&'_ mut self) -> ViewValuesMut<'_, T> {
         ViewValuesMut { view: self, pos: Some((0, 0)) }
     }
