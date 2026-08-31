@@ -460,10 +460,14 @@ where
 
         for i in 0..R {
             for j in 0..C {
-                let p = &mut ret[(i, j)];
+                // SAFETY: (i, j) is within bounds of ret.
+                let p = unsafe { ret.get_unchecked_mut((i, j)) };
 
                 for k in 0..S {
-                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                    // SAFETY: (i, k) and (k, j) are within bounds of self and rhs respectively.
+                    unsafe {
+                        *p = *p + *self.get_unchecked((i, k)) * *rhs.get_unchecked((k, j));
+                    }
                 }
             }
         }
@@ -483,10 +487,14 @@ where
 
         for i in 0..R {
             for j in 0..C {
-                let p = &mut ret[(i, j)];
+                // SAFETY: (i, j) is within the bounds of ret.
+                let p = unsafe { ret.get_unchecked_mut((i, j)) };
 
                 for k in 0..S {
-                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                    // SAFETY: (i, k) and (k, j) are within bounds of self and rhs respectively.
+                    unsafe {
+                        *p = *p + *self.get_unchecked((i, k)) * *rhs.get_unchecked((k, j));
+                    }
                 }
             }
         }
@@ -506,10 +514,14 @@ where
 
         for i in 0..R {
             for j in 0..C {
-                let p = &mut ret[(i, j)];
+                // SAFETY: (i, j) is within the bounds of ret.
+                let p = unsafe { ret.get_unchecked_mut((i, j)) };
 
                 for k in 0..S {
-                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                    // SAFETY: (i, k) and (k, j) are within bounds of self and rhs respectively.
+                    unsafe {
+                        *p = *p + *self.get_unchecked((i, k)) * *rhs.get_unchecked((k, j));
+                    }
                 }
             }
         }
@@ -529,10 +541,13 @@ where
 
         for i in 0..R {
             for j in 0..C {
-                let p = &mut ret[(i, j)];
+                // SAFETY: (i, j) is within the bounds of ret.
+                let p = unsafe { ret.get_unchecked_mut((i, j)) };
 
                 for k in 0..S {
-                    *p = *p + self[(i, k)] * rhs[(k, j)];
+                    unsafe {
+                        *p = *p + *self.get_unchecked((i, k)) * *rhs.get_unchecked((k, j));
+                    }
                 }
             }
         }
