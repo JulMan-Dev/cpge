@@ -4,7 +4,6 @@
 
 use crate::complex::BasicComplex;
 use crate::linear::family::VectorFamily;
-use crate::linear::gauss::MatrixRowOperation;
 use crate::linear::matrix::Matrix;
 use crate::linear::vector::Vector;
 use crate::linear::{InnerDotProductSpace, MetricSpace, NormedVectorSpace};

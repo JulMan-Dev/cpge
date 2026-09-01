@@ -5,8 +5,6 @@
 use crate::linear::convolution::ConvolutionRows;
 use crate::linear::{Matrix, MatrixRowOperation, Positions};
 use crate::mem::{AbstractVec, Living};
-#[cfg(feature = "alloc")]
-use alloc::vec::{vec, Vec};
 use core::cell::UnsafeCell;
 use core::mem;
 use core::mem::MaybeUninit;
