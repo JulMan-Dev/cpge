@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["lib"]
 
 [features]
-default = []
+default = ["std"]
 alloc = []
 std = ["alloc"]
 gl = [
